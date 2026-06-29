@@ -42,7 +42,9 @@ body {
 /* ----- screen plumbing ----- */
 .screen { display: none; height: 100%; }
 .screen.active { display: grid; }
-.screen.center { place-items: center; padding: 24px; }
+/* `safe center` keeps the panel from being clipped at the top when it is taller
+   than a short embed (e.g. ZEP/Gather modal); overflow-y lets the user scroll. */
+.screen.center { place-items: safe center; padding: 24px; overflow-y: auto; }
 
 /* ----- enter / lobby panels ----- */
 .panel {
@@ -148,6 +150,7 @@ input[type='text']:focus {
   height: 100%;
   padding: 14px clamp(10px, 3vw, 30px);
   gap: 10px;
+  overflow-y: auto; /* scroll the table inside short embeds instead of clipping */
 }
 #opponents {
   display: flex;
@@ -314,6 +317,20 @@ details.help b { color: var(--cream); }
 @keyframes deal { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
 @keyframes pop { from { opacity: 0; transform: scale(0.9); } }
 @keyframes glow { to { filter: drop-shadow(0 0 10px rgba(233, 168, 60, 0.7)); } }
+
+/* Short embeds (ZEP/Gather modal): compact the panel and cards so they fit. */
+@media (max-height: 680px) {
+  .panel { padding: 18px 20px; }
+  .brand { font-size: clamp(1.5rem, 1rem + 3vw, 2.2rem); }
+  .tagline { margin-bottom: 12px; font-size: 0.85rem; }
+  label { margin-top: 8px; }
+  .btn { margin-top: 12px; padding: 10px 16px; }
+  details.help { margin-top: 8px; }
+  .card { width: 52px; height: 75px; }
+  .card .pip { font-size: 1.5rem; }
+  #hand { max-height: 130px; gap: 6px; }
+  .fan .card { width: 24px; height: 36px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
