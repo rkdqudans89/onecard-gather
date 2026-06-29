@@ -23,7 +23,9 @@ const SUPABASE_KEY = 'sb_publishable_erk-6v_AmWeNbeHBkMGyIg_weFaqrdp'; // publis
 const APP_PREFIX = 'onecard-';
 
 const HEARTBEAT_MS = 2000;
-const PEER_TIMEOUT_MS = 6500;
+// Lenient: background tabs throttle timers heavily, so don't reap a peer for a
+// while. A closed tab disappears within this window; an active player never does.
+const PEER_TIMEOUT_MS = 30000;
 
 export const selfId =
   globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : 'p' + Math.random().toString(36).slice(2);

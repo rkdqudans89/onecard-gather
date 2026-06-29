@@ -44,6 +44,7 @@ export function createHost(transport) {
 
     if (action.type === 'start') {
       const seats = rosterList().filter((p) => everyone().includes(p.id));
+      console.log('[host] start from=', fromId, 'seats=', seats.length, 'roster=', [...roster.keys()], 'everyone=', everyone());
       if (seats.length < 2) {
         transport.send('toast', { msg: '2명 이상이어야 시작할 수 있어요.' }, fromId);
         return;
