@@ -37,9 +37,11 @@ export function createTransport(roomId) {
   // Trystero requires makeAction once per channel; create lazily, wire receive.
   function ensureChannel(channel) {
     if (senders.has(channel)) return;
-    const [send, receive] = room.makeAction(channel); // names must be <=12 bytes
-    senders.set(channel, send);
-    receive((data, peerId) => dispatch(channel, data, peerId));
+    // Trystero 0.25 makeAction returns { send, onMessage, onReceiveProgress };
+    // onMessage is an assignable setter (NOT a function to call).
+    const action = room.makeAction(channel); // names must be <=12 bytes
+    senders.set(channel, action.send);
+    action.onMessage = (data, peerId) => dispatch(channel, data, peerId);
   }
 
   function peerIds() {
