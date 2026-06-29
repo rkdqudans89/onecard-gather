@@ -10,7 +10,9 @@
 // LOOPBACK. target === selfId (or an omitted target / broadcast) also delivers to
 // our own handlers, so the host can treat itself as just another client.
 
-import { joinRoom, selfId } from 'https://esm.sh/trystero@0.25.2';
+// MQTT relay strategy (zero account) — swapped from Nostr after the public Nostr
+// relays failed to connect peers reliably. Still WebRTC data channels under the hood.
+import { joinRoom, selfId } from 'https://esm.sh/@trystero-p2p/mqtt@0.25.2';
 
 // Globally-unique app id namespaces our Nostr rooms away from other Trystero apps.
 const APP_ID = 'onecard-gather-bm-2026';
