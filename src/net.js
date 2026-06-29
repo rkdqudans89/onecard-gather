@@ -1,94 +1,106 @@
-// net.js — transport abstraction over Trystero (WebRTC, default Nostr strategy).
-// Zero account, no signaling server of our own. Pinned version for stability.
+// net.js — transport over Supabase Realtime (WebSocket). No WebRTC, so no NAT or
+// relay-discovery failures: every client connects to Supabase and messages are
+// relayed server-side. Same interface as before, so host.js / app.js are unchanged.
 //
-// This is the ONLY file that knows about Trystero. To move to an authoritative
-// server later (PartyKit / Cloudflare Durable Objects / a Node ws server), write
-// another module exposing the same shape and swap it in app.js — game logic and
-// host.js do not change.
+//   transport.selfId
+//   transport.send(channel, data, targetPeerId?)   // no target = broadcast
+//   transport.on(channel, (data, peerId) => {})
+//   transport.onPeerJoin(cb) / transport.onPeerLeave(cb)
+//   transport.peers() -> string[]   (other peers)
 //
-// Key extension over raw Trystero: send(channel, data, target) supports a local
-// LOOPBACK. target === selfId (or an omitted target / broadcast) also delivers to
-// our own handlers, so the host can treat itself as just another client.
+// Presence handles join/leave; a single broadcast event ('m') carries our app
+// messages, tagged with {ch, from, to}. Recipients filter by `to`. With
+// broadcast self:true, our own messages come back to us (built-in loopback).
+//
+// NOTE: Supabase broadcast has no true per-recipient delivery, so per-player
+// "view" payloads are sent to everyone and filtered client-side by `to`. Hands
+// are therefore visible to a determined network snooper — fine for a friendly
+// game; revisit if you ever need anti-cheat.
 
-// MQTT relay strategy (zero account) — swapped from Nostr after the public Nostr
-// relays failed to connect peers reliably. Still WebRTC data channels under the hood.
-import { joinRoom, selfId } from 'https://esm.sh/@trystero-p2p/mqtt@0.25.2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Globally-unique app id namespaces our Nostr rooms away from other Trystero apps.
-const APP_ID = 'onecard-gather-bm-2026';
+const SUPABASE_URL = 'https://ganlqftyyvuahfneruxt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_erk-6v_AmWeNbeHBkMGyIg_weFaqrdp'; // publishable: safe in browser
+const APP_PREFIX = 'onecard-';
 
-export { selfId };
+export const selfId =
+  globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : 'p' + Math.random().toString(36).slice(2);
 
 export function createTransport(roomId) {
-  const room = joinRoom({ appId: APP_ID }, roomId);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    realtime: { params: { eventsPerSecond: 20 } },
+  });
 
   const handlers = new Map(); // channel -> Set<fn>
-  const senders = new Map(); // channel -> trystero send fn
   const joinCbs = new Set();
   const leaveCbs = new Set();
+  const known = new Set(); // currently-present peer ids (excluding self)
+  const outbox = []; // queued sends until subscribed
+  let subscribed = false;
 
-  // Track connected peers ourselves — reliable across Trystero versions and
-  // not subject to getPeers() timing during the join callback.
-  const livePeers = new Set();
+  const channel = supabase.channel(APP_PREFIX + encodeURIComponent(roomId), {
+    config: { broadcast: { self: true }, presence: { key: selfId } },
+  });
 
-  // Trystero exposes these as assignable setters (NOT methods to call).
-  // Update livePeers BEFORE firing callbacks so host election sees the new peer.
-  room.onPeerJoin = (id) => {
-    livePeers.add(id);
-    joinCbs.forEach((fn) => fn(id));
-  };
-  room.onPeerLeave = (id) => {
-    livePeers.delete(id);
-    leaveCbs.forEach((fn) => fn(id));
-  };
-
-  function dispatch(channel, data, peerId) {
-    const set = handlers.get(channel);
-    if (set) for (const fn of set) fn(data, peerId);
+  function dispatch(ch, data, from) {
+    const set = handlers.get(ch);
+    if (set) for (const fn of set) fn(data, from);
   }
 
-  // Trystero requires makeAction once per channel; create lazily, wire receive.
-  function ensureChannel(channel) {
-    if (senders.has(channel)) return;
-    // Trystero 0.25 makeAction returns { send, onMessage, onReceiveProgress };
-    // onMessage is an assignable setter (NOT a function to call).
-    const action = room.makeAction(channel); // names must be <=12 bytes
-    senders.set(channel, action.send);
-    action.onMessage = (data, peerId) => dispatch(channel, data, peerId);
+  // App messages.
+  channel.on('broadcast', { event: 'm' }, ({ payload }) => {
+    if (!payload) return;
+    const { ch, data, from, to } = payload;
+    if (to && to !== selfId) return; // addressed to someone else
+    dispatch(ch, data, from);
+  });
+
+  // Presence: derive join/leave by diffing the synced state (robust ordering).
+  channel.on('presence', { event: 'sync' }, () => {
+    const now = new Set(peerIds());
+    for (const id of now) {
+      if (!known.has(id)) {
+        known.add(id);
+        joinCbs.forEach((fn) => fn(id));
+      }
+    }
+    for (const id of [...known]) {
+      if (!now.has(id)) {
+        known.delete(id);
+        leaveCbs.forEach((fn) => fn(id));
+      }
+    }
+  });
+
+  channel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      subscribed = true;
+      channel.track({ id: selfId });
+      for (const p of outbox.splice(0)) rawSend(p);
+    }
+  });
+
+  function rawSend(payload) {
+    channel.send({ type: 'broadcast', event: 'm', payload });
   }
 
   function peerIds() {
-    return [...livePeers];
+    const state = channel.presenceState();
+    return Object.keys(state).filter((k) => k !== selfId);
   }
-
-  // Pre-create every channel at join so Trystero negotiates all actions during
-  // connection setup. Avoids a race where a lazily-created action's first
-  // message (e.g. the client's "hello") is dropped before the channel exists.
-  ['hello', 'intent', 'lobby', 'view', 'toast'].forEach(ensureChannel);
 
   return {
     selfId,
 
-    on(channel, fn) {
-      ensureChannel(channel);
-      if (!handlers.has(channel)) handlers.set(channel, new Set());
-      handlers.get(channel).add(fn);
+    on(ch, fn) {
+      if (!handlers.has(ch)) handlers.set(ch, new Set());
+      handlers.get(ch).add(fn);
     },
 
-    send(channel, data, target) {
-      ensureChannel(channel);
-      const send = senders.get(channel);
-
-      if (target === undefined) {
-        // Broadcast to all remote peers, plus local loopback.
-        if (peerIds().length > 0) send(data);
-        queueMicrotask(() => dispatch(channel, data, selfId));
-      } else if (target === selfId) {
-        // Pure loopback to ourselves.
-        queueMicrotask(() => dispatch(channel, data, selfId));
-      } else {
-        send(data, target); // unicast to one remote peer
-      }
+    send(ch, data, target) {
+      const payload = { ch, data, from: selfId, to: target ?? null };
+      if (subscribed) rawSend(payload);
+      else outbox.push(payload);
     },
 
     onPeerJoin(fn) {
@@ -101,7 +113,9 @@ export function createTransport(roomId) {
       return peerIds();
     },
     leave() {
-      room.leave();
+      try {
+        channel.unsubscribe();
+      } catch {}
     },
   };
 }
