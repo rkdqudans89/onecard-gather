@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>원카드 · Gather</title>
+    <meta name="description" content="친구들과 함께하는 실시간 원카드 카드게임" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <!-- ENTER -->
+      <section id="screen-enter" class="screen center" aria-label="입장">
+        <div class="panel">
+          <h1 class="brand">원<span class="accent">카드</span></h1>
+          <p class="tagline">같은 방 코드로 모이면 바로 함께 플레이 · 최대 4인</p>
+
+          <label for="enter-name">닉네임</label>
+          <input id="enter-name" type="text" maxlength="16" placeholder="예: 병준" />
+
+          <label for="enter-room">방 코드 (같은 코드끼리 만나요)</label>
+          <input id="enter-room" type="text" maxlength="24" placeholder="거실" />
+
+          <button id="btn-enter" class="btn">입장하기</button>
+
+          <details class="help">
+            <summary>게임 방법 보기</summary>
+            <p>
+              내 차례에 <b>바닥 카드와 같은 무늬 또는 같은 숫자</b> 카드를 냅니다.<br />
+              · <b>7</b> = 만능 카드(아무 데나 내고 무늬 변경)<br />
+              · <b>2</b> = 다음 사람 +2장 (2로 받아치면 누적)<br />
+              · <b>A</b> = 다음 사람 한 번 쉬기<br />
+              · <b>J</b> = 방향 전환<br />
+              낼 카드가 없으면 <b>카드 받기</b>. 먼저 손패를 모두 비우면 승리!
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <!-- LOBBY -->
+      <section id="screen-lobby" class="screen center" aria-label="대기실">
+        <div class="panel">
+          <div class="lobby-head">
+            <h2 class="brand" style="font-size: 1.6rem">대기실</h2>
+            <span class="room-pill">방 <span id="lobby-room">거실</span></span>
+          </div>
+          <ul id="lobby-players"></ul>
+          <button id="btn-start" class="btn" disabled>다른 사람을 기다리는 중…</button>
+          <button id="btn-copy" class="btn ghost">초대 링크 복사</button>
+          <p class="hint">
+            같은 방 코드를 입력한 사람끼리 자동으로 모입니다. 이 페이지를 Gather에 임베드하면
+            아바타로 다가가 <b>X</b> 키로 함께 즐길 수 있어요.
+          </p>
+          <p id="alone-hint" class="hint">
+            아직 아무도 없어요. 친구에게 초대 링크를 보내거나, 방 코드가 같은지 확인해 주세요.
+            (회사·학교 방화벽에서는 P2P 연결이 막힐 수 있어요.)
+          </p>
+        </div>
+      </section>
+
+      <!-- GAME -->
+      <section id="screen-game" class="screen" aria-label="게임 테이블">
+        <div id="opponents"></div>
+
+        <div class="board">
+          <div class="pile">
+            <div class="deck-stack">
+              <div class="card back" style="position: absolute; inset: 0"></div>
+              <div class="card back" style="position: absolute; inset: 0; transform: translate(3px, -3px)"></div>
+            </div>
+            <div class="pile-label">남은 카드 <span id="draw-count">0</span>장</div>
+          </div>
+
+          <div class="status">
+            <div id="turn-banner">대기 중</div>
+            <div id="active-suit"></div>
+            <div id="dir"></div>
+            <div><span id="pending"></span></div>
+            <div id="log"></div>
+          </div>
+
+          <div class="pile">
+            <div id="discard"></div>
+            <div class="pile-label">바닥 카드</div>
+          </div>
+
+          <!-- suit chooser overlay (after a wild 7) -->
+          <div id="suit-chooser">
+            <div class="suit-card">
+              <strong>바꿀 무늬를 고르세요</strong>
+              <div class="suit-grid">
+                <button data-suit="S" aria-label="스페이드">♠</button>
+                <button data-suit="H" class="red" aria-label="하트">♥</button>
+                <button data-suit="D" class="red" aria-label="다이아">♦</button>
+                <button data-suit="C" aria-label="클럽">♣</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="me">
+          <div class="me-info">
+            <div id="my-name">나</div>
+            <div id="my-count">0장</div>
+            <div id="onecard-badge">원카드!</div>
+          </div>
+          <div id="hand"></div>
+          <div class="me-controls">
+            <button id="btn-draw" class="btn" disabled>카드 받기</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- winner overlay -->
+    <div id="winner-overlay">
+      <div style="text-align: center">
+        <div id="winner-text">승리!</div>
+        <button id="btn-again" class="btn" style="width: auto; margin-top: 18px; padding: 12px 32px">
+          다시 하기
+        </button>
+      </div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
