@@ -54,7 +54,6 @@ function connect() {
   });
 
   transport.on('view', (v) => {
-    console.log('[view] recv phase=', v && v.phase);
     view = v;
     if (v.phase === 'playing' || v.phase === 'ended') {
       renderGame();
@@ -105,7 +104,6 @@ function reelectHost() {
 }
 
 function sendIntent(action) {
-  console.log('[intent]', action.type, 'amHost=', amHost, 'hostInstance=', !!hostInstance, 'hostId=', hostId, 'self=', selfId);
   if (amHost && hostInstance) hostInstance.localIntent(action);
   else transport.send('intent', action, hostId);
 }
