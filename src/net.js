@@ -25,9 +25,20 @@ export function createTransport(roomId) {
   const joinCbs = new Set();
   const leaveCbs = new Set();
 
+  // Track connected peers ourselves — reliable across Trystero versions and
+  // not subject to getPeers() timing during the join callback.
+  const livePeers = new Set();
+
   // Trystero exposes these as assignable setters (NOT methods to call).
-  room.onPeerJoin = (id) => joinCbs.forEach((fn) => fn(id));
-  room.onPeerLeave = (id) => leaveCbs.forEach((fn) => fn(id));
+  // Update livePeers BEFORE firing callbacks so host election sees the new peer.
+  room.onPeerJoin = (id) => {
+    livePeers.add(id);
+    joinCbs.forEach((fn) => fn(id));
+  };
+  room.onPeerLeave = (id) => {
+    livePeers.delete(id);
+    leaveCbs.forEach((fn) => fn(id));
+  };
 
   function dispatch(channel, data, peerId) {
     const set = handlers.get(channel);
@@ -45,8 +56,7 @@ export function createTransport(roomId) {
   }
 
   function peerIds() {
-    const peers = room.getPeers ? room.getPeers() : {};
-    return Object.keys(peers);
+    return [...livePeers];
   }
 
   return {
