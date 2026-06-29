@@ -25,8 +25,9 @@ export function createTransport(roomId) {
   const joinCbs = new Set();
   const leaveCbs = new Set();
 
-  room.onPeerJoin((id) => joinCbs.forEach((fn) => fn(id)));
-  room.onPeerLeave((id) => leaveCbs.forEach((fn) => fn(id)));
+  // Trystero exposes these as assignable setters (NOT methods to call).
+  room.onPeerJoin = (id) => joinCbs.forEach((fn) => fn(id));
+  room.onPeerLeave = (id) => leaveCbs.forEach((fn) => fn(id));
 
   function dispatch(channel, data, peerId) {
     const set = handlers.get(channel);
