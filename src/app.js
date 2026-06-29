@@ -75,6 +75,12 @@ function connect() {
   sayHello();
   aloneSince = performance.now();
   tickAlone();
+
+  // Re-announce presence periodically while in the lobby so the host's roster
+  // always converges even if a single hello is dropped during connection setup.
+  setInterval(() => {
+    if (!view || view.phase !== 'playing') sayHello();
+  }, 3000);
 }
 
 function sayHello() {

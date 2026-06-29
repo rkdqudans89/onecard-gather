@@ -59,6 +59,11 @@ export function createTransport(roomId) {
     return [...livePeers];
   }
 
+  // Pre-create every channel at join so Trystero negotiates all actions during
+  // connection setup. Avoids a race where a lazily-created action's first
+  // message (e.g. the client's "hello") is dropped before the channel exists.
+  ['hello', 'intent', 'lobby', 'view', 'toast'].forEach(ensureChannel);
+
   return {
     selfId,
 
